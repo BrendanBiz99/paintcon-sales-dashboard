@@ -1,61 +1,85 @@
 const express = require('express');
 const router = express.Router();
-const {
-  REPS,
-  TODAY_KPIS,
-  WEEK_KPIS,
-  ACTIVITIES,
-  DAILY_TARGET,
-  CAMPAIGN,
-  buildRepDailyTrend,
-} = require('../data/mockData');
+const { reps, campaign } = require('../data/mockData');
 
 // GET /api/reps — list all reps
 router.get('/', (req, res) => {
-  const list = REPS.map((rep) => ({
-    id: rep.id,
-    name: rep.name,
-    initials: rep.initials,
-    email: rep.email,
-  }));
-  res.json(list);
+  res.json(
+    reps.map((r) => ({ id: r.id, name: r.name, initials: r.initials, email: r.email, role: r.role }))
+  );
 });
 
 // GET /api/reps/:id/kpis
 router.get('/:id/kpis', (req, res) => {
-  const rep = REPS.find((r) => r.id === req.params.id);
+  const rep = reps.find((r) => r.id === req.params.id);
   if (!rep) return res.status(404).json({ error: 'Rep not found' });
 
-  const today = TODAY_KPIS[rep.id] || { dials: 0, contacts: 0, conversations: 0, closes: 0 };
-  const thisWeek = WEEK_KPIS[rep.id] || { dials: 0, contacts: 0, conversations: 0, closes: 0 };
+  const todayStr   = new Date().toISOString().slice(0, 10);
+  const weekStart  = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay() + 1); // Monday
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const todayTickets  = rep.tickets.filter((t) => (t.date || '').slice(0, 10) === todayStr).length;
+  const weekTickets   = rep.tickets.filter((t) => (t.date || '').slice(0, 10) >= weekStart).length;
 
   res.json({
-    today,
-    thisWeek,
-    allTime: rep.allTime,
-    speedToLead: rep.speedToLead,
-    dailyTarget: DAILY_TARGET,
-    dailyProgress: today.closes,
-    revenue: rep.allTime.closes * CAMPAIGN.pricePerTicket,
+    allTime: {
+      dials:         rep.dials,
+      contacts:      rep.contacts,
+      conversations: rep.conversations,
+      closes:        rep.closes,
+      revenue:       rep.revenue,
+    },
+    today:    { closes: todayTickets },
+    thisWeek: { closes: weekTickets  },
+    speedToLead:   rep.speedToLead,
+    dailyTarget:   5,
+    dailyProgress: todayTickets,
+    role:          rep.role,
   });
 });
 
-// GET /api/reps/:id/sales-trend
+// GET /api/reps/:id/sales-trend — last 30 days from rep.tickets
 router.get('/:id/sales-trend', (req, res) => {
-  const rep = REPS.find((r) => r.id === req.params.id);
+  const rep = reps.find((r) => r.id === req.params.id);
   if (!rep) return res.status(404).json({ error: 'Rep not found' });
 
-  const trend = buildRepDailyTrend(rep.id);
-  // Return last 30 days
-  res.json(trend.slice(-30));
+  if (!rep.tickets.length) return res.json([]);
+
+  const byDate = {};
+  for (const t of rep.tickets) {
+    const date = (t.date || '').slice(0, 10);
+    if (date) byDate[date] = (byDate[date] || 0) + 1;
+  }
+  const dates = Object.keys(byDate).sort().slice(-30);
+  let cumulative = 0;
+  const trend = dates.map((date) => {
+    cumulative += byDate[date];
+    return { date, tickets: byDate[date], cumulative };
+  });
+  res.json(trend);
 });
 
-// GET /api/reps/:id/activities
+// GET /api/reps/:id/activities — recent ticket activity from rep.tickets
 router.get('/:id/activities', (req, res) => {
-  const rep = REPS.find((r) => r.id === req.params.id);
+  const rep = reps.find((r) => r.id === req.params.id);
   if (!rep) return res.status(404).json({ error: 'Rep not found' });
 
-  res.json(ACTIVITIES[rep.id] || []);
+  const activities = rep.tickets
+    .slice()
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+    .slice(0, 20)
+    .map((t, i) => ({
+      id:          t.id || `${rep.id}-${i}`,
+      type:        'close',
+      description: `Sold ${t.tierId || 'ticket'} to ${t.contact || 'a contact'}`,
+      timestamp:   t.date || t.timestamp || new Date().toISOString(),
+      amount:      t.amount || t.revenue || 0,
+    }));
+
+  res.json(activities);
 });
 
 module.exports = router;

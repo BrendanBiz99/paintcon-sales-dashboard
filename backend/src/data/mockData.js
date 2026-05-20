@@ -1,18 +1,22 @@
-export const campaign = {
+// ─────────────────────────────────────────────────────────────────────────────
+// PaintCon Sales Mock Data
+// ─────────────────────────────────────────────────────────────────────────────
+
+const campaign = {
   name: "PaintCon 2025",
   goal: 1000,
   startDate: "2025-06-01",
   endDate: "2025-11-30",
 };
 
-export const ticketTiers = [
-  { id: "ga", name: "General Admission" },
-  { id: "vip", name: "VIP" },
-  { id: "ceo", name: "CEO" },
+const ticketTiers = [
+  { id: "ga",        name: "General Admission" },
+  { id: "vip",       name: "VIP" },
+  { id: "ceo",       name: "CEO" },
   { id: "super_ceo", name: "Super CEO" },
 ];
 
-export const reps = [
+const reps = [
   {
     id: "brendan",
     name: "Brendan Whiting",
@@ -57,4 +61,6 @@ export const reps = [
   },
 ];
 
-export const ticketSales = [];
+const ticketSales = [];
+
+module.exports = { campaign, ticketTiers, reps, ticketSales };
